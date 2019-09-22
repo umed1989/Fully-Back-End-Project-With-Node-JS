@@ -42,8 +42,13 @@ const userSchema = new mongoose.Schema({
     }
   },
   passwordChangedAt: Date,
-  passwordresetToken: String,
-  passwordResetExpires: Date
+  passwordResetToken: String,
+  passwordResetExpires: Date,
+  active: {
+    type: Boolean,
+    default: true,
+    select: false
+  }
 });
 
 userSchema.pre('save', async function(next) {
@@ -52,6 +57,20 @@ userSchema.pre('save', async function(next) {
   this.password = await bcrypt.hash(this.password, 12);
 
   this.passwordConfirm = undefined;
+  next();
+});
+
+userSchema.pre(/^find/, function(next) {
+  //this points to current query
+  //find the active documents
+  this.find({ active: { $ne: false } });
+  next();
+});
+
+userSchema.pre('save', async function(next) {
+  if (!this.isModified('password') || this.isNew) return next();
+
+  this.passwordChangedAt = Date.now() - 1000;
   next();
 });
 
@@ -82,8 +101,6 @@ userSchema.methods.createPasswordResetToken = function() {
     .createHash('sha256')
     .update(resetToken)
     .digest('hex');
-
-  console.log({ resetToken }, this.passwordResetToken);
 
   this.passwordResetExpires = Date.now() + 10 * 60 * 1000;
 
